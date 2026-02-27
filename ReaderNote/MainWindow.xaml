@@ -1,0 +1,56 @@
+<Window
+    x:Class="ReaderNote.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:ReaderNote"
+    mc:Ignorable="d"
+    Title="ReaderNote - Win11 免安装版">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <CommandBar Grid.Row="0" DefaultLabelPosition="Right">
+            <AppBarButton Icon="OpenFile" Label="打开文档" />
+            <AppBarButton Icon="Save" Label="保存" />
+            <AppBarButton Icon="Export" Label="导出" />
+            <AppBarSeparator />
+            <AppBarButton Icon="PreviewLink" Label="连线模式" />
+        </CommandBar>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="3*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" BorderBrush="#D6DDEB" BorderThickness="0,0,1,0" Padding="12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="阅读区（PDF / DOCX）" FontWeight="SemiBold" />
+                    <TextBlock TextWrapping="Wrap" Text="下一步接入 PDFium + OpenXML，支持选区摘录与锚点定位。" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Height="480">
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="这里是左侧阅读器占位。后续支持文本选择、框选摘录、回链定位。" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Padding="12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="摘录画布（卡片 + 连线）" FontWeight="SemiBold" />
+                    <TextBlock TextWrapping="Wrap" Text="下一步接入可拖拽卡片、边缘连接点、吸附连线与关系标签。" />
+                    <Canvas x:Name="BoardCanvas" Background="#F7F9FD" Height="520" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" BorderBrush="#D6DDEB" BorderThickness="1,1,1,0" Padding="8">
+            <TextBlock x:Name="StatusText" Text="就绪：Win11 免安装工程骨架已创建。" />
+        </Border>
+    </Grid>
+</Window>
