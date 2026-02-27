@@ -117,6 +117,7 @@
   <button id="selectionPop" class="selection-pop">创建摘录</button>
   <div id="linkingHint" class="linking-hint">连线模式：拖到目标卡片后松开创建；Esc 取消。</div>
 
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
   <script>
     const STORAGE_KEY = 'win11-reader-prototype-v2';
 
@@ -530,7 +531,19 @@
         const url = URL.createObjectURL(file);
         reader.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none"></iframe>`;
       } else if (ext === 'docx') {
-        reader.textContent = 'DOCX 当前为增强原型占位：建议下一步集成 mammoth.js 进行真实文本解析。';
+        reader.textContent = '正在解析 DOCX，请稍候...';
+        try {
+          if (!window.mammoth) {
+            throw new Error('mammoth 未加载');
+          }
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await window.mammoth.extractRawText({ arrayBuffer });
+          const parsedText = (result.value || '').trim();
+          reader.textContent = parsedText || 'DOCX 解析完成，但未提取到可显示文本。';
+        } catch (err) {
+          console.error(err);
+          reader.textContent = 'DOCX 导入失败：解析组件加载异常或文件格式不受支持。';
+        }
       } else {
         reader.textContent = '暂不支持该格式。';
       }
