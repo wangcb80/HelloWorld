@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Win11 摘录阅读器原型</title>
+  <style>
+    :root { font-family: "Segoe UI", system-ui, sans-serif; }
+    body { margin: 0; background: #f3f5f9; color: #222; }
+    .topbar { display:flex; gap:12px; align-items:center; padding:10px 14px; background:#fff; border-bottom:1px solid #dde3ee; }
+    .container { display:grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 52px); }
+    .pane { position:relative; overflow:hidden; }
+    .left { border-right:1px solid #dde3ee; background:#fff; }
+    .right { background:#f8f9fc; }
+    .reader { height:100%; overflow:auto; padding:20px; line-height:1.7; white-space:pre-wrap; }
+    .reader mark { background:#ffe99a; }
+    .selection-pop { position:fixed; display:none; z-index:10; background:#222; color:#fff; border-radius:8px; padding:6px 10px; font-size:13px; cursor:pointer; }
+    .board { position:relative; width:100%; height:100%; overflow:auto; }
+    .board-inner { position:relative; width:2000px; height:1400px; }
+    .edge-layer { position:absolute; inset:0; pointer-events:none; }
+    .card { position:absolute; width:220px; min-height:110px; border:1px solid #c9d3e7; background:#fff; border-radius:10px; box-shadow:0 6px 16px rgba(27,55,107,.12); }
+    .card.selected { outline:2px solid #3b82f6; }
+    .card-header { cursor:move; background:#eef3ff; padding:8px 10px; border-radius:10px 10px 0 0; font-size:12px; color:#2f4f87; display:flex; justify-content:space-between; }
+    .card-body { padding:10px; font-size:14px; }
+    .anchor-btn { border:none; background:#3b82f6; color:#fff; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:12px; }
+    .connector { position:absolute; right:-7px; top:50%; transform:translateY(-50%); width:14px; height:14px; border-radius:50%; background:#5b8dff; display:none; cursor:crosshair; }
+    .card:hover .connector { display:block; }
+    .hint { color:#62708a; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <strong>Win11 摘录阅读器（原型）</strong>
+    <input id="fileInput" type="file" accept=".txt,.md,.docx,.pdf" />
+    <span class="hint">支持 txt/md 直接阅读；pdf 以内嵌方式打开（演示）；docx 暂示例文本。</span>
+  </div>
+
+  <div class="container">
+    <div class="pane left">
+      <div id="reader" class="reader" contenteditable="false">请先选择文件，或直接在此阅读示例内容。
+
+MarginNote 风格核心：从左侧选中内容，创建右侧摘录块，建立连线，点击回跳。
+      </div>
+    </div>
+    <div class="pane right">
+      <div id="board" class="board">
+        <div id="boardInner" class="board-inner">
+          <svg id="edgeLayer" class="edge-layer"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="selectionPop" class="selection-pop">创建摘录</button>
+
+  <script>
+    const reader = document.getElementById('reader');
+    const pop = document.getElementById('selectionPop');
+    const boardInner = document.getElementById('boardInner');
+    const edgeLayer = document.getElementById('edgeLayer');
+    const fileInput = document.getElementById('fileInput');
+
+    let cards = new Map();
+    let edges = new Map();
+    let cardSeq = 1;
+    let edgeSeq = 1;
+    let selectedEdgeId = null;
+    let currentSelection = null;
+    let linkingFrom = null;
+
+    function renderEdges() {
+      edgeLayer.innerHTML = '';
+      edgeLayer.setAttribute('width', boardInner.clientWidth);
+      edgeLayer.setAttribute('height', boardInner.clientHeight);
+      edges.forEach((edge) => {
+        const fromCard = document.getElementById(edge.from);
+        const toCard = document.getElementById(edge.to);
+        if (!fromCard || !toCard) return;
+        const fromRect = fromCard.getBoundingClientRect();
+        const toRect = toCard.getBoundingClientRect();
+        const boardRect = boardInner.getBoundingClientRect();
+        const x1 = fromRect.right - boardRect.left;
+        const y1 = fromRect.top + fromRect.height / 2 - boardRect.top;
+        const x2 = toRect.left - boardRect.left;
+        const y2 = toRect.top + toRect.height / 2 - boardRect.top;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.dataset.edgeId = edge.id;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1 + 60} ${y1}, ${x2 - 60} ${y2}, ${x2} ${y2}`);
+        path.setAttribute('stroke', edge.id === selectedEdgeId ? '#ef4444' : '#4b6fff');
+        path.setAttribute('stroke-width', edge.id === selectedEdgeId ? '3' : '2');
+        path.setAttribute('fill', 'none');
+        path.style.pointerEvents = 'stroke';
+        path.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectedEdgeId = edge.id;
+          renderEdges();
+        });
+        g.appendChild(path);
+        edgeLayer.appendChild(g);
+      });
+    }
+
+    function showSelectionPop() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        pop.style.display = 'none';
+        return;
+      }
+      if (!reader.contains(sel.anchorNode)) return;
+      const range = sel.getRangeAt(0);
+      const text = sel.toString().trim();
+      if (!text) return;
+      const rect = range.getBoundingClientRect();
+      currentSelection = { text, range: range.cloneRange() };
+      pop.style.left = `${rect.left + rect.width / 2 - 36}px`;
+      pop.style.top = `${rect.top - 40}px`;
+      pop.style.display = 'block';
+    }
+
+    function highlightRange(range) {
+      const mark = document.createElement('mark');
+      try {
+        range.surroundContents(mark);
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          const parent = mark.parentNode;
+          while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+          parent.removeChild(mark);
+        }, 1200);
+      } catch {
+        // ignore complex range in prototype
+      }
+    }
+
+    function createCard(text, sourceRange) {
+      const id = `card-${cardSeq++}`;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = id;
+      card.style.left = `${80 + (cardSeq % 5) * 26}px`;
+      card.style.top = `${60 + (cardSeq % 6) * 26}px`;
+      card.innerHTML = `
+        <div class="card-header">
+          <span>摘录块 ${id}</span>
+          <button class="anchor-btn">回到原文</button>
+        </div>
+        <div class="card-body"></div>
+        <div class="connector" title="拖动连接"></div>
+      `;
+      card.querySelector('.card-body').textContent = text;
+      const source = sourceRange ? sourceRange.cloneRange() : null;
+      cards.set(id, { id, source });
+
+      card.querySelector('.anchor-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!source) return;
+        const r = source.cloneRange();
+        const s = window.getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        highlightRange(r);
+      });
+
+      const header = card.querySelector('.card-header');
+      let dragging = false, ox = 0, oy = 0;
+      header.addEventListener('mousedown', (e) => {
+        dragging = true;
+        const r = card.getBoundingClientRect();
+        ox = e.clientX - r.left;
+        oy = e.clientY - r.top;
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const r = boardInner.getBoundingClientRect();
+        card.style.left = `${e.clientX - r.left - ox}px`;
+        card.style.top = `${e.clientY - r.top - oy}px`;
+        renderEdges();
+      });
+      window.addEventListener('mouseup', () => dragging = false);
+
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+
+      const connector = card.querySelector('.connector');
+      connector.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        linkingFrom = id;
+      });
+
+      boardInner.appendChild(card);
+      renderEdges();
+    }
+
+    boardInner.addEventListener('mouseup', (e) => {
+      if (!linkingFrom) return;
+      const targetCard = e.target.closest('.card');
+      if (targetCard && targetCard.id !== linkingFrom) {
+        const id = `edge-${edgeSeq++}`;
+        edges.set(id, { id, from: linkingFrom, to: targetCard.id });
+      }
+      linkingFrom = null;
+      renderEdges();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Delete' && selectedEdgeId) {
+        edges.delete(selectedEdgeId);
+        selectedEdgeId = null;
+        renderEdges();
+      }
+    });
+
+    reader.addEventListener('mouseup', () => setTimeout(showSelectionPop, 10));
+    reader.addEventListener('keyup', () => setTimeout(showSelectionPop, 10));
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.selection-pop')) pop.style.display = 'none';
+      if (!e.target.closest('.card') && !e.target.closest('path')) {
+        document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        selectedEdgeId = null;
+        renderEdges();
+      }
+    });
+
+    pop.addEventListener('click', () => {
+      if (!currentSelection) return;
+      createCard(currentSelection.text, currentSelection.range);
+      pop.style.display = 'none';
+      window.getSelection().removeAllRanges();
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (['txt','md'].includes(ext)) {
+        reader.innerHTML = '';
+        reader.textContent = await file.text();
+      } else if (ext === 'pdf') {
+        const url = URL.createObjectURL(file);
+        reader.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none"></iframe>`;
+      } else if (ext === 'docx') {
+        reader.textContent = 'DOCX 解析可接入 mammoth.js（当前原型未内置）。你可以先转换为 txt/md 进行完整摘录演示。';
+      } else {
+        reader.textContent = '暂不支持该格式。';
+      }
+    });
+
+    renderEdges();
+  </script>
+</body>
+</html>
