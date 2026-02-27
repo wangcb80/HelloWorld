@@ -3,253 +3,578 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Win11 摘录阅读器原型</title>
+  <title>Win11 摘录阅读器（增强原型）</title>
   <style>
-    :root { font-family: "Segoe UI", system-ui, sans-serif; }
-    body { margin: 0; background: #f3f5f9; color: #222; }
-    .topbar { display:flex; gap:12px; align-items:center; padding:10px 14px; background:#fff; border-bottom:1px solid #dde3ee; }
-    .container { display:grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 52px); }
-    .pane { position:relative; overflow:hidden; }
-    .left { border-right:1px solid #dde3ee; background:#fff; }
-    .right { background:#f8f9fc; }
-    .reader { height:100%; overflow:auto; padding:20px; line-height:1.7; white-space:pre-wrap; }
-    .reader mark { background:#ffe99a; }
-    .selection-pop { position:fixed; display:none; z-index:10; background:#222; color:#fff; border-radius:8px; padding:6px 10px; font-size:13px; cursor:pointer; }
-    .board { position:relative; width:100%; height:100%; overflow:auto; }
-    .board-inner { position:relative; width:2000px; height:1400px; }
-    .edge-layer { position:absolute; inset:0; pointer-events:none; }
-    .card { position:absolute; width:220px; min-height:110px; border:1px solid #c9d3e7; background:#fff; border-radius:10px; box-shadow:0 6px 16px rgba(27,55,107,.12); }
-    .card.selected { outline:2px solid #3b82f6; }
-    .card-header { cursor:move; background:#eef3ff; padding:8px 10px; border-radius:10px 10px 0 0; font-size:12px; color:#2f4f87; display:flex; justify-content:space-between; }
-    .card-body { padding:10px; font-size:14px; }
-    .anchor-btn { border:none; background:#3b82f6; color:#fff; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:12px; }
-    .connector { position:absolute; right:-7px; top:50%; transform:translateY(-50%); width:14px; height:14px; border-radius:50%; background:#5b8dff; display:none; cursor:crosshair; }
-    .card:hover .connector { display:block; }
-    .hint { color:#62708a; font-size:12px; }
+    :root {
+      --line: #d8e0f0;
+      --bg: #f3f6fb;
+      --card: #ffffff;
+      --primary: #3a6df0;
+      --primary-soft: #e8efff;
+      --text: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--text); background: var(--bg); }
+    .topbar {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      border-bottom: 1px solid var(--line); background: #fff; position: sticky; top: 0; z-index: 10;
+    }
+    .topbar .title { font-weight: 700; margin-right: 8px; }
+    .topbar button, .topbar select, .topbar input[type="file"] {
+      border: 1px solid #c7d3eb; border-radius: 8px; background: #fff; padding: 6px 10px; font-size: 13px;
+    }
+    .topbar button { cursor: pointer; }
+    .topbar button:hover { background: #f4f7ff; }
+    .container { display: grid; grid-template-columns: minmax(420px, 48%) 1fr; height: calc(100vh - 57px); }
+    .left-pane { background: #fff; border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+    .left-meta { font-size: 12px; color: #60708f; border-bottom: 1px solid var(--line); padding: 8px 12px; }
+    .reader {
+      flex: 1; overflow: auto; padding: 22px; line-height: 1.8; white-space: pre-wrap;
+      user-select: text; position: relative;
+    }
+    .reader mark { background: #ffe89a; border-radius: 2px; }
+    .right-pane { position: relative; overflow: hidden; }
+    .board { width: 100%; height: 100%; overflow: auto; }
+    .board-inner { position: relative; width: 2200px; height: 1500px; }
+    .edge-layer { position: absolute; inset: 0; pointer-events: none; }
+
+    .card {
+      position: absolute; width: 260px; min-height: 124px; border: 1px solid #c7d3eb; background: var(--card);
+      border-radius: 12px; box-shadow: 0 8px 18px rgba(39, 57, 102, 0.14); overflow: visible;
+    }
+    .card.selected { outline: 2px solid var(--primary); }
+    .card.snap-target { box-shadow: 0 0 0 3px #9db8ff; }
+    .card-header {
+      cursor: move; background: var(--primary-soft); border-bottom: 1px solid #dbe5fb;
+      display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px 10px;
+    }
+    .card-title {
+      font-size: 12px; font-weight: 600; color: #2f4f87; border: none; background: transparent; width: 70%;
+    }
+    .card-title:focus { outline: 1px dashed #7fa4ff; border-radius: 4px; }
+    .card-body {
+      border: none; width: 100%; min-height: 78px; padding: 10px; font-size: 14px; line-height: 1.6; resize: vertical;
+      font-family: inherit;
+    }
+    .card-actions { display: flex; gap: 8px; padding: 0 10px 10px; }
+    .small-btn {
+      font-size: 12px; border: 1px solid #c6d2ec; background: #fff; border-radius: 6px; padding: 4px 8px; cursor: pointer;
+    }
+    .small-btn:hover { background: #f5f8ff; }
+    .connector {
+      width: 14px; height: 14px; border-radius: 50%; background: #4b78ff; position: absolute; top: 50%; right: -8px;
+      transform: translateY(-50%); display: none; cursor: crosshair;
+      box-shadow: 0 0 0 2px #fff;
+    }
+    .card:hover .connector, .card.selected .connector { display: block; }
+
+    .selection-pop {
+      position: fixed; z-index: 20; display: none; background: #222; color: #fff; border: none;
+      border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px;
+    }
+    .linking-hint {
+      position: fixed; right: 16px; bottom: 12px; z-index: 20; background: rgba(34, 41, 58, 0.92);
+      color: #e7eeff; border-radius: 8px; padding: 8px 10px; font-size: 12px; display: none;
+    }
   </style>
 </head>
 <body>
   <div class="topbar">
-    <strong>Win11 摘录阅读器（原型）</strong>
-    <input id="fileInput" type="file" accept=".txt,.md,.docx,.pdf" />
-    <span class="hint">支持 txt/md 直接阅读；pdf 以内嵌方式打开（演示）；docx 暂示例文本。</span>
+    <span class="title">Win11 摘录阅读器（增强原型）</span>
+    <input id="fileInput" type="file" accept=".txt,.md,.pdf,.docx" />
+    <button id="saveBtn">保存到本地</button>
+    <button id="clearBtn">清空画布</button>
+    <button id="exportBtn">导出 JSON</button>
+    <input id="importInput" type="file" accept="application/json" />
+    <span style="font-size:12px;color:#60708f;">Delete 删除选中卡片/连线；连线时按 Esc 取消</span>
   </div>
 
   <div class="container">
-    <div class="pane left">
-      <div id="reader" class="reader" contenteditable="false">请先选择文件，或直接在此阅读示例内容。
+    <section class="left-pane">
+      <div id="leftMeta" class="left-meta">当前文档：示例文本（可选择文本后点击“创建摘录”）</div>
+      <div id="reader" class="reader">
+这是一段示例阅读文本。你可以在这里选中任意内容，点击“创建摘录”，生成右侧摘录块。
 
-MarginNote 风格核心：从左侧选中内容，创建右侧摘录块，建立连线，点击回跳。
+建议演示流程：
+1. 在左侧选中几句话。
+2. 点击浮窗“创建摘录”。
+3. 拖动右侧卡片位置。
+4. 从卡片右边蓝色连接点拖到另一卡片，创建关系线。
+5. 点击关系线后按 Delete 删除。
+6. 点击卡片“回到原文”，检查定位与高亮。
       </div>
-    </div>
-    <div class="pane right">
+    </section>
+
+    <section class="right-pane">
       <div id="board" class="board">
         <div id="boardInner" class="board-inner">
           <svg id="edgeLayer" class="edge-layer"></svg>
         </div>
       </div>
-    </div>
+    </section>
   </div>
 
   <button id="selectionPop" class="selection-pop">创建摘录</button>
+  <div id="linkingHint" class="linking-hint">连线模式：拖到目标卡片后松开创建；Esc 取消。</div>
 
   <script>
+    const STORAGE_KEY = 'win11-reader-prototype-v2';
+
     const reader = document.getElementById('reader');
-    const pop = document.getElementById('selectionPop');
+    const leftMeta = document.getElementById('leftMeta');
+    const fileInput = document.getElementById('fileInput');
+    const importInput = document.getElementById('importInput');
+    const selectionPop = document.getElementById('selectionPop');
+    const linkingHint = document.getElementById('linkingHint');
     const boardInner = document.getElementById('boardInner');
     const edgeLayer = document.getElementById('edgeLayer');
-    const fileInput = document.getElementById('fileInput');
 
-    let cards = new Map();
-    let edges = new Map();
+    const saveBtn = document.getElementById('saveBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const exportBtn = document.getElementById('exportBtn');
+
     let cardSeq = 1;
     let edgeSeq = 1;
-    let selectedEdgeId = null;
     let currentSelection = null;
-    let linkingFrom = null;
+    let selectedCardId = null;
+    let selectedEdgeId = null;
+
+    let linking = {
+      active: false,
+      fromCardId: null,
+      tempPoint: { x: 0, y: 0 },
+      hoverCardId: null,
+    };
+
+    const state = {
+      cards: new Map(),
+      edges: new Map(),
+    };
+
+    function nextCardId() { return `card-${cardSeq++}`; }
+    function nextEdgeId() { return `edge-${edgeSeq++}`; }
+
+    function cardCenterRight(cardEl) {
+      const c = cardEl.getBoundingClientRect();
+      const b = boardInner.getBoundingClientRect();
+      return { x: c.right - b.left, y: c.top + c.height / 2 - b.top };
+    }
+
+    function cardCenterLeft(cardEl) {
+      const c = cardEl.getBoundingClientRect();
+      const b = boardInner.getBoundingClientRect();
+      return { x: c.left - b.left, y: c.top + c.height / 2 - b.top };
+    }
+
+    function createPath(x1, y1, x2, y2) {
+      return `M ${x1} ${y1} C ${x1 + 70} ${y1}, ${x2 - 70} ${y2}, ${x2} ${y2}`;
+    }
 
     function renderEdges() {
       edgeLayer.innerHTML = '';
       edgeLayer.setAttribute('width', boardInner.clientWidth);
       edgeLayer.setAttribute('height', boardInner.clientHeight);
-      edges.forEach((edge) => {
-        const fromCard = document.getElementById(edge.from);
-        const toCard = document.getElementById(edge.to);
-        if (!fromCard || !toCard) return;
-        const fromRect = fromCard.getBoundingClientRect();
-        const toRect = toCard.getBoundingClientRect();
-        const boardRect = boardInner.getBoundingClientRect();
-        const x1 = fromRect.right - boardRect.left;
-        const y1 = fromRect.top + fromRect.height / 2 - boardRect.top;
-        const x2 = toRect.left - boardRect.left;
-        const y2 = toRect.top + toRect.height / 2 - boardRect.top;
 
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.dataset.edgeId = edge.id;
+      for (const edge of state.edges.values()) {
+        const fromEl = document.getElementById(edge.fromCardId);
+        const toEl = document.getElementById(edge.toCardId);
+        if (!fromEl || !toEl) continue;
+
+        const p1 = cardCenterRight(fromEl);
+        const p2 = cardCenterLeft(toEl);
+
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', `M ${x1} ${y1} C ${x1 + 60} ${y1}, ${x2 - 60} ${y2}, ${x2} ${y2}`);
+        path.setAttribute('d', createPath(p1.x, p1.y, p2.x, p2.y));
+        path.setAttribute('fill', 'none');
         path.setAttribute('stroke', edge.id === selectedEdgeId ? '#ef4444' : '#4b6fff');
         path.setAttribute('stroke-width', edge.id === selectedEdgeId ? '3' : '2');
-        path.setAttribute('fill', 'none');
         path.style.pointerEvents = 'stroke';
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.textContent = edge.relation || '关联';
+        label.setAttribute('x', ((p1.x + p2.x) / 2).toString());
+        label.setAttribute('y', ((p1.y + p2.y) / 2 - 6).toString());
+        label.setAttribute('fill', '#2f4f87');
+        label.setAttribute('font-size', '11');
+        label.setAttribute('text-anchor', 'middle');
+
         path.addEventListener('click', (e) => {
           e.stopPropagation();
           selectedEdgeId = edge.id;
+          selectedCardId = null;
+          document.querySelectorAll('.card').forEach(el => el.classList.remove('selected'));
           renderEdges();
         });
-        g.appendChild(path);
-        edgeLayer.appendChild(g);
-      });
+
+        group.append(path, label);
+        edgeLayer.appendChild(group);
+      }
+
+      if (linking.active && linking.fromCardId) {
+        const fromEl = document.getElementById(linking.fromCardId);
+        if (fromEl) {
+          const p1 = cardCenterRight(fromEl);
+          const p2 = linking.tempPoint;
+          const temp = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          temp.setAttribute('d', createPath(p1.x, p1.y, p2.x, p2.y));
+          temp.setAttribute('fill', 'none');
+          temp.setAttribute('stroke', '#7aa0ff');
+          temp.setAttribute('stroke-width', '2');
+          temp.setAttribute('stroke-dasharray', '6 4');
+          edgeLayer.appendChild(temp);
+        }
+      }
+    }
+
+    function saveState() {
+      const payload = {
+        cardSeq,
+        edgeSeq,
+        cards: Array.from(state.cards.values()),
+        edges: Array.from(state.edges.values()),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw);
+        cardSeq = payload.cardSeq || 1;
+        edgeSeq = payload.edgeSeq || 1;
+        if (Array.isArray(payload.cards)) payload.cards.forEach(createCardFromData);
+        if (Array.isArray(payload.edges)) payload.edges.forEach(e => state.edges.set(e.id, e));
+        renderEdges();
+      } catch {
+        console.warn('state parse failed');
+      }
     }
 
     function showSelectionPop() {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
-        pop.style.display = 'none';
+        selectionPop.style.display = 'none';
         return;
       }
       if (!reader.contains(sel.anchorNode)) return;
+
       const range = sel.getRangeAt(0);
       const text = sel.toString().trim();
       if (!text) return;
+
       const rect = range.getBoundingClientRect();
       currentSelection = { text, range: range.cloneRange() };
-      pop.style.left = `${rect.left + rect.width / 2 - 36}px`;
-      pop.style.top = `${rect.top - 40}px`;
-      pop.style.display = 'block';
+      selectionPop.style.left = `${rect.left + rect.width / 2 - 36}px`;
+      selectionPop.style.top = `${Math.max(8, rect.top - 40)}px`;
+      selectionPop.style.display = 'block';
     }
 
-    function highlightRange(range) {
+    function flashRange(range) {
       const mark = document.createElement('mark');
       try {
         range.surroundContents(mark);
         mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => {
-          const parent = mark.parentNode;
-          while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
-          parent.removeChild(mark);
-        }, 1200);
+          const p = mark.parentNode;
+          while (mark.firstChild) p.insertBefore(mark.firstChild, mark);
+          p.removeChild(mark);
+        }, 1300);
       } catch {
-        // ignore complex range in prototype
+        // complex DOM range fallback: just scroll
+        range.startContainer?.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
 
-    function createCard(text, sourceRange) {
-      const id = `card-${cardSeq++}`;
-      const card = document.createElement('div');
+    function createCardFromData(data) {
+      const card = document.createElement('article');
       card.className = 'card';
-      card.id = id;
-      card.style.left = `${80 + (cardSeq % 5) * 26}px`;
-      card.style.top = `${60 + (cardSeq % 6) * 26}px`;
+      card.id = data.id;
+      card.style.left = `${data.x}px`;
+      card.style.top = `${data.y}px`;
       card.innerHTML = `
         <div class="card-header">
-          <span>摘录块 ${id}</span>
-          <button class="anchor-btn">回到原文</button>
+          <input class="card-title" value="${(data.title || '').replace(/"/g, '&quot;')}" />
+          <span style="font-size:11px;color:#7182a8;">${data.id}</span>
         </div>
-        <div class="card-body"></div>
-        <div class="connector" title="拖动连接"></div>
+        <textarea class="card-body"></textarea>
+        <div class="card-actions">
+          <button class="small-btn jump-btn">回到原文</button>
+          <button class="small-btn del-btn">删除卡片</button>
+        </div>
+        <div class="connector" title="拖拽创建连线"></div>
       `;
-      card.querySelector('.card-body').textContent = text;
-      const source = sourceRange ? sourceRange.cloneRange() : null;
-      cards.set(id, { id, source });
+      card.querySelector('.card-body').value = data.content || '';
+      boardInner.appendChild(card);
+      state.cards.set(data.id, data);
 
-      card.querySelector('.anchor-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!source) return;
-        const r = source.cloneRange();
-        const s = window.getSelection();
-        s.removeAllRanges();
-        s.addRange(r);
-        highlightRange(r);
+      const titleInput = card.querySelector('.card-title');
+      const bodyInput = card.querySelector('.card-body');
+
+      titleInput.addEventListener('input', () => {
+        const c = state.cards.get(data.id);
+        c.title = titleInput.value;
+        saveState();
+      });
+      bodyInput.addEventListener('input', () => {
+        const c = state.cards.get(data.id);
+        c.content = bodyInput.value;
+        saveState();
       });
 
+      card.querySelector('.jump-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const c = state.cards.get(data.id);
+        if (!c || !c.sourceText) return;
+        const idx = reader.textContent.indexOf(c.sourceText);
+        if (idx >= 0) {
+          const range = document.createRange();
+          const walker = document.createTreeWalker(reader, NodeFilter.SHOW_TEXT);
+          let passed = 0, startNode = null, endNode = null, startOffset = 0, endOffset = 0;
+          while (walker.nextNode()) {
+            const t = walker.currentNode.textContent;
+            if (!startNode && passed + t.length >= idx) {
+              startNode = walker.currentNode;
+              startOffset = idx - passed;
+            }
+            if (startNode && passed + t.length >= idx + c.sourceText.length) {
+              endNode = walker.currentNode;
+              endOffset = idx + c.sourceText.length - passed;
+              break;
+            }
+            passed += t.length;
+          }
+          if (startNode && endNode) {
+            range.setStart(startNode, startOffset);
+            range.setEnd(endNode, endOffset);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            flashRange(range);
+          }
+        }
+      });
+
+      card.querySelector('.del-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteCard(data.id);
+      });
+
+      let dragging = false;
+      let offsetX = 0, offsetY = 0;
       const header = card.querySelector('.card-header');
-      let dragging = false, ox = 0, oy = 0;
       header.addEventListener('mousedown', (e) => {
         dragging = true;
-        const r = card.getBoundingClientRect();
-        ox = e.clientX - r.left;
-        oy = e.clientY - r.top;
+        const rect = card.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
       });
       window.addEventListener('mousemove', (e) => {
         if (!dragging) return;
-        const r = boardInner.getBoundingClientRect();
-        card.style.left = `${e.clientX - r.left - ox}px`;
-        card.style.top = `${e.clientY - r.top - oy}px`;
+        const b = boardInner.getBoundingClientRect();
+        const x = e.clientX - b.left - offsetX;
+        const y = e.clientY - b.top - offsetY;
+        card.style.left = `${x}px`;
+        card.style.top = `${y}px`;
+        const c = state.cards.get(data.id);
+        c.x = x; c.y = y;
         renderEdges();
       });
-      window.addEventListener('mouseup', () => dragging = false);
+      window.addEventListener('mouseup', () => {
+        if (dragging) saveState();
+        dragging = false;
+      });
 
       card.addEventListener('click', (e) => {
         e.stopPropagation();
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        selectedCardId = data.id;
+        selectedEdgeId = null;
+        document.querySelectorAll('.card').forEach(el => el.classList.remove('selected'));
         card.classList.add('selected');
+        renderEdges();
       });
 
       const connector = card.querySelector('.connector');
       connector.addEventListener('mousedown', (e) => {
         e.stopPropagation();
-        linkingFrom = id;
+        linking.active = true;
+        linking.fromCardId = data.id;
+        linkingHint.style.display = 'block';
       });
+    }
 
-      boardInner.appendChild(card);
+    function addCardFromSelection() {
+      if (!currentSelection) return;
+      const id = nextCardId();
+      const data = {
+        id,
+        title: `摘录 ${id}`,
+        content: currentSelection.text,
+        sourceText: currentSelection.text,
+        x: 80 + (cardSeq % 6) * 30,
+        y: 70 + (cardSeq % 7) * 26,
+      };
+      createCardFromData(data);
+      saveState();
+      selectionPop.style.display = 'none';
+      window.getSelection().removeAllRanges();
+    }
+
+    function deleteCard(cardId) {
+      state.cards.delete(cardId);
+      document.getElementById(cardId)?.remove();
+      for (const [id, edge] of state.edges.entries()) {
+        if (edge.fromCardId === cardId || edge.toCardId === cardId) {
+          state.edges.delete(id);
+        }
+      }
+      if (selectedCardId === cardId) selectedCardId = null;
+      renderEdges();
+      saveState();
+    }
+
+    function clearAll() {
+      state.cards.clear();
+      state.edges.clear();
+      boardInner.querySelectorAll('.card').forEach(el => el.remove());
+      selectedCardId = null;
+      selectedEdgeId = null;
+      renderEdges();
+      saveState();
+    }
+
+    function createEdge(fromCardId, toCardId) {
+      const relation = prompt('请输入关系标签（如：因果 / 解释 / 反驳）', '关联');
+      const edge = {
+        id: nextEdgeId(),
+        fromCardId,
+        toCardId,
+        relation: relation?.trim() || '关联',
+      };
+      state.edges.set(edge.id, edge);
+      saveState();
       renderEdges();
     }
 
-    boardInner.addEventListener('mouseup', (e) => {
-      if (!linkingFrom) return;
-      const targetCard = e.target.closest('.card');
-      if (targetCard && targetCard.id !== linkingFrom) {
-        const id = `edge-${edgeSeq++}`;
-        edges.set(id, { id, from: linkingFrom, to: targetCard.id });
-      }
-      linkingFrom = null;
+    reader.addEventListener('mouseup', () => setTimeout(showSelectionPop, 10));
+    reader.addEventListener('keyup', () => setTimeout(showSelectionPop, 10));
+
+    selectionPop.addEventListener('click', addCardFromSelection);
+
+    boardInner.addEventListener('mousemove', (e) => {
+      if (!linking.active) return;
+      const b = boardInner.getBoundingClientRect();
+      linking.tempPoint = { x: e.clientX - b.left, y: e.clientY - b.top };
+
+      const target = e.target.closest('.card');
+      linking.hoverCardId = target?.id || null;
+      document.querySelectorAll('.card').forEach(el => el.classList.remove('snap-target'));
+      if (target && target.id !== linking.fromCardId) target.classList.add('snap-target');
       renderEdges();
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Delete' && selectedEdgeId) {
-        edges.delete(selectedEdgeId);
-        selectedEdgeId = null;
-        renderEdges();
+    boardInner.addEventListener('mouseup', (e) => {
+      if (!linking.active) return;
+      const target = e.target.closest('.card');
+      if (target && target.id !== linking.fromCardId) {
+        createEdge(linking.fromCardId, target.id);
       }
+      document.querySelectorAll('.card').forEach(el => el.classList.remove('snap-target'));
+      linking = { active: false, fromCardId: null, tempPoint: { x: 0, y: 0 }, hoverCardId: null };
+      linkingHint.style.display = 'none';
+      renderEdges();
     });
 
-    reader.addEventListener('mouseup', () => setTimeout(showSelectionPop, 10));
-    reader.addEventListener('keyup', () => setTimeout(showSelectionPop, 10));
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.selection-pop')) pop.style.display = 'none';
+      if (!e.target.closest('.selection-pop')) selectionPop.style.display = 'none';
       if (!e.target.closest('.card') && !e.target.closest('path')) {
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        selectedCardId = null;
         selectedEdgeId = null;
+        document.querySelectorAll('.card').forEach(el => el.classList.remove('selected'));
         renderEdges();
       }
     });
 
-    pop.addEventListener('click', () => {
-      if (!currentSelection) return;
-      createCard(currentSelection.text, currentSelection.range);
-      pop.style.display = 'none';
-      window.getSelection().removeAllRanges();
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && linking.active) {
+        linking = { active: false, fromCardId: null, tempPoint: { x: 0, y: 0 }, hoverCardId: null };
+        linkingHint.style.display = 'none';
+        document.querySelectorAll('.card').forEach(el => el.classList.remove('snap-target'));
+        renderEdges();
+        return;
+      }
+      if (e.key === 'Delete') {
+        if (selectedEdgeId) {
+          state.edges.delete(selectedEdgeId);
+          selectedEdgeId = null;
+          saveState();
+          renderEdges();
+          return;
+        }
+        if (selectedCardId) {
+          deleteCard(selectedCardId);
+        }
+      }
     });
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const ext = file.name.split('.').pop().toLowerCase();
-      if (['txt','md'].includes(ext)) {
-        reader.innerHTML = '';
+      leftMeta.textContent = `当前文档：${file.name}`;
+
+      if (ext === 'txt' || ext === 'md') {
         reader.textContent = await file.text();
       } else if (ext === 'pdf') {
         const url = URL.createObjectURL(file);
         reader.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none"></iframe>`;
       } else if (ext === 'docx') {
-        reader.textContent = 'DOCX 解析可接入 mammoth.js（当前原型未内置）。你可以先转换为 txt/md 进行完整摘录演示。';
+        reader.textContent = 'DOCX 当前为增强原型占位：建议下一步集成 mammoth.js 进行真实文本解析。';
       } else {
         reader.textContent = '暂不支持该格式。';
       }
     });
 
+    saveBtn.addEventListener('click', () => {
+      saveState();
+      alert('已保存到浏览器本地存储。');
+    });
+
+    clearBtn.addEventListener('click', () => {
+      if (confirm('确定清空全部摘录块和连线吗？')) clearAll();
+    });
+
+    exportBtn.addEventListener('click', () => {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        cards: Array.from(state.cards.values()),
+        edges: Array.from(state.edges.values()),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'reader-board-export.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    importInput.addEventListener('change', async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      try {
+        const payload = JSON.parse(await f.text());
+        clearAll();
+        (payload.cards || []).forEach(createCardFromData);
+        (payload.edges || []).forEach(edge => state.edges.set(edge.id, edge));
+        saveState();
+        renderEdges();
+      } catch {
+        alert('导入失败：JSON 格式不正确。');
+      }
+    });
+
+    loadState();
     renderEdges();
   </script>
 </body>
