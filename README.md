@@ -1,20 +1,27 @@
 # HelloWorld
 
-当前仓库包含两部分：
+这个仓库已从 HTML 原型方向转向 **Win11 免安装桌面软件**。
 
-1. `app.html`：早期交互原型（用于验证流程）
-2. `WIN11_PORTABLE_APP_DESIGN.md`：Win11 免安装桌面软件设计方案（正式方向）
+## 目录说明
 
-## 你当前要的版本
+- `ReaderNote/`：WinUI 3 桌面工程骨架（后续主线）
+- `WIN11_PORTABLE_APP_DESIGN.md`：免安装版架构与发布设计
+- `DESIGN_WIN11_READER.md`：完整产品需求与交互设计
+- `app.html`：早期交互验证原型（仅参考，不再作为最终交付）
 
-你要求的是 **Win11 免安装软件**（不是网页 HTML 版本），请以该文档作为后续开发基线：
+## Win11 本地构建（在 Windows 环境执行）
 
-- [Win11 免安装版摘录阅读软件设计](./WIN11_PORTABLE_APP_DESIGN.md)
-
-## 原型运行（仅用于参考）
-
-```bash
-python3 -m http.server 8000
+```powershell
+cd .\ReaderNote
+dotnet restore
+dotnet build -c Release
 ```
 
-打开：`http://localhost:8000/app.html`
+## 发布免安装单文件（在 Windows 环境执行）
+
+```powershell
+cd .\ReaderNote
+dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true
+```
+
+输出位于：`ReaderNote\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\`
